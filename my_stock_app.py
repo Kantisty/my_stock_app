@@ -7,16 +7,15 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V9.1", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.1)")
-st.caption("베이스: V7.9 / 엔진: Gemini 3 Pro (Auto-Fallback 적용)")
+st.set_page_config(page_title="AI 투자 비서 V9.2", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.2)")
+st.caption("지표 확장: 코스닥, 한국 국채, 미 30년물, 금 추가 완료")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
     st.header("⚙️ 설정")
     api_key = st.text_input("Google API Key (AI용)", type="password", help="aistudio.google.com에서 발급")
     
-    # V7.9의 심플한 기간 설정 유지
     period_dict = {"1개월": 30, "3개월": 90, "6개월": 180, "1년": 365}
     selected_period_name = st.selectbox("차트 조회 기간", list(period_dict.keys()), index=1)
     days = period_dict[selected_period_name]
@@ -29,10 +28,11 @@ with st.sidebar:
 end_date = datetime.now()
 start_date = end_date - timedelta(days=days)
 
-# 2. 데이터 그룹
+# 2. 데이터 그룹 (요청하신 지표 대거 추가)
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
+        "🇰🇷 코스닥": {"type": "fdr", "symbol": "KQ11", "color": "#FF6347"}, # 추가됨
         "🇺🇸 S&P 500": {"type": "fdr", "symbol": "US500", "color": "#27AE60"},
         "🇺🇸 나스닥 100": {"type": "fdr", "symbol": "IXIC", "color": "#8E44AD"},
         "💾 반도체(SOX)": {"type": "yf", "symbol": "^SOX", "color": "#2980B9"}
@@ -40,9 +40,12 @@ indicators_group = {
     "💰 환율 & 금리": {
         "💸 원/달러": {"type": "fdr", "symbol": "USD/KRW", "color": "#D35400"},
         "🏦 미국 SOFR": {"type": "fdr", "symbol": "FRED:SOFR", "color": "#16A085"},
-        "🇺🇸 미 국채 10년": {"type": "yf", "symbol": "^TNX", "color": "#2980B9"}
+        "🇰🇷 한국 국채 10년": {"type": "yf", "symbol": "KR10YT=RR", "color": "#C0392B"}, # 추가됨
+        "🇺🇸 미 국채 10년": {"type": "yf", "symbol": "^TNX", "color": "#2980B9"},
+        "🇺🇸 미 국채 30년": {"type": "yf", "symbol": "^TYX", "color": "#1ABC9C"}  # 추가됨
     },
     "🪙 원자재/코인": {
+        "🥇 금 선물 (Gold)": {"type": "yf", "symbol": "GC=F", "color": "#F1C40F"}, # 추가됨
         "₿ 비트코인": {"type": "yf", "symbol": "BTC-USD", "color": "#F39C12"},
         "🛢️ WTI 원유": {"type": "yf", "symbol": "CL=F", "color": "#2C3E50"},
         "😱 공포지수(VIX)": {"type": "yf", "symbol": "^VIX", "color": "#7F8C8D"}
@@ -52,7 +55,7 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수 (V7.9 디자인: 수치 위, 차트 아래)
+# 3. 차트 그리기 함수
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
@@ -78,10 +81,8 @@ def draw_chart(name, info):
         
         daily_data_summary[name] = f"{last_val:,.2f} ({diff_pct:+.2f}%)"
 
-        # 수치 표시
         st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{diff_pct:.2f}%")
         
-        # 차트 그리기
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=col.index, 
@@ -106,7 +107,7 @@ def draw_chart(name, info):
         
     except: pass
 
-# 4. 뉴스 가져오기 함수 (V7.5 방식)
+# 4. 뉴스 가져오기 함수
 def get_news_feed(rss_url, max_items=7):
     try:
         feed = feedparser.parse(rss_url)
@@ -119,21 +120,18 @@ def get_news_feed(rss_url, max_items=7):
     except Exception as e:
         return [f"뉴스 피드 로딩 실패: {e}"]
 
-# 5. [핵심] AI 모델 자동 전환 함수
+# 5. AI 응답 생성 함수
 def generate_ai_report(prompt, api_key):
     genai.configure(api_key=api_key)
-    
-    # 1순위: Gemini 3 Pro 시도
     try:
         model = genai.GenerativeModel('gemini-3-pro-preview')
         response = model.generate_content(prompt)
-        return f"🚀 **Gemini 3 Pro 분석 결과** (최신 모델 작동)\n\n{response.text}"
+        return f"🚀 **Gemini 3 Pro 분석 결과** (최신 모델)\n\n{response.text}"
     except Exception as e_3pro:
-        # 실패 시 2순위: Gemini 2.5 Flash 시도
         try:
             model_fallback = genai.GenerativeModel('gemini-2.5-flash')
             response_fallback = model_fallback.generate_content(prompt)
-            return f"⚠️ **Gemini 2.5 Flash 분석 결과** (3 Pro 연결 실패로 자동 전환됨)\n\n{response_fallback.text}"
+            return f"⚠️ **Gemini 2.5 Flash 분석 결과** (자동 전환됨)\n\n{response_fallback.text}"
         except Exception as e_final:
             return f"❌ 분석 실패: {e_final}"
 
@@ -169,7 +167,6 @@ with tab_ai:
     st.markdown("### 🧠 뉴스 + 데이터 기반 AI 투자 리포트")
     st.info("엔진: Gemini 3 Pro (우선) -> Gemini 2.5 Flash (예비)")
     
-    # V7.9처럼 심플하게 버튼 하나로 통합
     if st.button("📊 AI 심층 분석 시작"):
         if not api_key:
             st.error("설정 탭에서 API Key를 입력해주세요.")
@@ -183,15 +180,13 @@ with tab_ai:
                 {news_summary}
 
                 위 정보를 바탕으로 다음 보고서를 작성해 주세요:
-                1. **미국, 한국 시장 핵심 요약(각각 3줄)**
+                1. **시장 핵심 요약 (3줄)**
                 2. **상승/하락 원인 분석**: 뉴스와 지표를 연결해서 설명.
-                3. **위험 신호 점검**: 특히 SOFR, 국채금리, 환율 위주로.
+                3. **위험 신호 점검**: 특히 SOFR, 국채금리(10년/30년), 환율 위주로.
                 4. **실전 투자 전략**: 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언.
                 
                 중요한 부분은 굵은 글씨로 강조해 주세요.
                 """
                 
-                # 안전장치가 적용된 함수 호출
                 result = generate_ai_report(prompt, api_key)
                 st.markdown(result)
-
