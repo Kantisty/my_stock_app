@@ -1,0 +1,6 @@
+streamlit
+finance-datareader
+yfinance
+plotly
+google-generativeai
+feedparser
