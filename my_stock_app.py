@@ -7,9 +7,9 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V9.5", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.5)")
-st.caption("AI 분석력 강화: 달러인덱스, 구리, 하이일드 채권(HYG) 추가")
+st.set_page_config(page_title="AI 투자 비서 V9.6", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.6)")
+st.caption("리포트 양식 업그레이드: 국가별 요약 분리 및 심층 분석 기준 적용")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
@@ -34,7 +34,7 @@ with st.sidebar:
 end_date = datetime.now()
 start_date = end_date - timedelta(days=days)
 
-# 2. 데이터 그룹 (핵심 지표 3종 추가)
+# 2. 데이터 그룹
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
@@ -45,8 +45,8 @@ indicators_group = {
     },
     "💰 환율 & 금리 & 리스크": {
         "💸 원/달러": {"type": "fdr", "symbol": "USD/KRW", "color": "#D35400"},
-        "💵 달러 인덱스": {"type": "yf", "symbol": "DX-Y.NYB", "color": "#2E86C1"}, # 추가됨 (환율 원인 분석)
-        "⚠️ 하이일드(HYG)": {"type": "yf", "symbol": "HYG", "color": "#800080"}, # 추가됨 (기업 부도 리스크)
+        "💵 달러 인덱스": {"type": "yf", "symbol": "DX-Y.NYB", "color": "#2E86C1"},
+        "⚠️ 하이일드(HYG)": {"type": "yf", "symbol": "HYG", "color": "#800080"},
         "🏦 미국 SOFR": {"type": "fdr", "symbol": "FRED:SOFR", "color": "#16A085"},
         "🇰🇷 한국 국채 10년": {"type": "fdr", "symbol": "KR10YT=RR", "color": "#C0392B"},
         "🇺🇸 미 국채 10년": {"type": "yf", "symbol": "^TNX", "color": "#2980B9"},
@@ -54,7 +54,7 @@ indicators_group = {
     },
     "🪙 원자재/코인": {
         "🥇 금 선물 (Gold)": {"type": "yf", "symbol": "GC=F", "color": "#F1C40F"},
-        "🏭 구리 (경기선행)": {"type": "yf", "symbol": "HG=F", "color": "#A0522D"}, # 추가됨 (실물 경기 예측)
+        "🏭 구리 (경기선행)": {"type": "yf", "symbol": "HG=F", "color": "#A0522D"},
         "₿ 비트코인": {"type": "yf", "symbol": "BTC-USD", "color": "#F39C12"},
         "🛢️ WTI 원유": {"type": "yf", "symbol": "CL=F", "color": "#2C3E50"},
         "😱 공포지수(VIX)": {"type": "yf", "symbol": "^VIX", "color": "#7F8C8D"}
@@ -183,6 +183,7 @@ with tab_ai:
             st.error("설정 탭에서 API Key를 입력해주세요.")
         else:
             with st.spinner("AI가 시장을 분석 중입니다..."):
+                # ✅ 사용자가 요청한 양식대로 프롬프트 전면 수정
                 prompt = f"""
                 당신은 월가 최고의 헤지펀드 매니저입니다.
                 [시장 데이터]
@@ -190,15 +191,23 @@ with tab_ai:
                 [뉴스 헤드라인]
                 {news_summary}
 
-                위 정보를 바탕으로 다음 보고서를 작성해 주세요:
-                1. **시장 핵심 요약 (3줄)**
-                2. **상승/하락 원인 분석**:
-                   - 환율 상승 시: 달러 인덱스 때문인지 한국 내부 문제인지 구분.
-                   - 경기 침체 여부: 구리(Copper)와 하이일드(HYG) 지표 참고.
-                3. **위험 신호 점검**: 특히 SOFR, 국채금리, 환율 위주로.
-                4. **실전 투자 전략**: 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언.
+                위 정보를 바탕으로 다음 양식에 맞춰 보고서를 작성해 주세요:
                 
-                중요한 부분은 굵은 글씨로 강조해 주세요.
+                1. **한국, 미국 시장 핵심 요약 (각각 3줄)**
+                   - 한국 시장 요약:
+                   - 미국 시장 요약:
+
+                2. **상승/하락 원인 분석**:
+                   - 환율 상승 시: 달러 인덱스 때문인지 한국 내부 문제인지 구분하여 설명.
+                   - 경기 침체 여부: 구리(Copper)와 하이일드(HYG) 지표 및 인플레이션율(뉴스 기반 추론) 참고하여 진단.
+
+                3. **위험 신호 점검**:
+                   - SOFR 금리, 국채금리(10년/30년), 환율 위주로 특이사항 체크.
+
+                4. **실전 투자 전략**:
+                   - 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언 (매수/매도/관망).
+                
+                중요한 부분은 **굵은 글씨**로 강조해 주세요.
                 """
                 
                 result = generate_ai_report(prompt, api_key)
