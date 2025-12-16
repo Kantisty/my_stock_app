@@ -7,13 +7,14 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V7.3", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.3)")
-st.caption("최신 모델(Gemini 2.5 Flash) 및 안정화된 한국 뉴스 피드 적용")
+st.set_page_config(page_title="AI 투자 비서 V7.5", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.5)")
+st.caption("안정적인 매일경제 증권 뉴스 피드 적용 완료")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
     st.header("⚙️ 설정")
+    # API 키 입력 필드는 유지
     api_key = st.text_input("Google API Key (AI용)", type="password", help="aistudio.google.com에서 발급")
     
     period_dict = {"1개월": 30, "3개월": 90, "6개월": 180, "1년": 365}
@@ -27,7 +28,7 @@ with st.sidebar:
 end_date = datetime.now()
 start_date = end_date - timedelta(days=days)
 
-# 2. 데이터 그룹 정의
+# 2. 데이터 그룹 (V7.3과 동일)
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
@@ -50,7 +51,7 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수
+# 3. 차트 그리기 함수 (V7.3과 동일)
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
@@ -86,7 +87,7 @@ def draw_chart(name, info):
         st.divider()
     except: pass
 
-# 4. 뉴스 가져오기 함수 (안정성 강화)
+# 4. 뉴스 가져오기 함수 (V7.3과 동일)
 def get_news_feed(rss_url, max_items=7):
     try:
         feed = feedparser.parse(rss_url)
@@ -117,9 +118,9 @@ with tab_chart:
 with tab_news:
     col_korea, col_us = st.columns(2)
     with col_korea:
-        st.subheader("🇰🇷 한국 증시 뉴스 (네이버)")
-        # 네이버 증권 국내 증시 뉴스로 변경
-        k_news = get_news_feed("https://rss.naver.com/rss/nasdaq.xml", 7) 
+        st.subheader("🇰🇷 한국 증시 뉴스 (매일경제)")
+        # ✅ 매일경제 RSS로 교체
+        k_news = get_news_feed("https://www.mk.co.kr/rss/30100041/", 7) 
         for news in k_news: st.markdown(news)
         news_summary += "한국 뉴스:\n" + "\n".join(k_news) + "\n\n"
     with col_us:
@@ -130,7 +131,7 @@ with tab_news:
 
 with tab_ai:
     st.markdown("### 🧠 뉴스 + 데이터 기반 AI 투자 리포트")
-    st.info("AI 모델이 'Gemini 2.5 Flash'로 설정되었습니다. 'AI 심층 분석 시작' 버튼을 눌러주세요.")
+    st.info("AI 모델이 'Gemini 2.5 Flash'로 설정되었습니다.")
     
     if st.button("📊 AI 심층 분석 시작"):
         if not api_key:
@@ -138,8 +139,8 @@ with tab_ai:
         else:
             with st.spinner("최신 AI 모델(Gemini 2.5 Flash)이 분석 중입니다..."):
                 try:
-                    genai.configure(api_key=api_key)
-                    # ✅ 최종 모델 이름 사용
+                    # ✅ API 버전 명시 추가
+                    genai.configure(api_key=api_key, client_options={"api_version": "v1"})
                     model = genai.GenerativeModel('gemini-2.5-flash')
                     
                     prompt = f"""
@@ -161,4 +162,4 @@ with tab_ai:
                     st.success("분석 완료!")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"오류 발생: {e}\n(API Key를 다시 확인하거나, 모델명을 확인해주세요.)")
+                    st.error(f"오류 발생: {e}\n\n⚠️ 오류 상세: API Key와 모델 이름(gemini-2.5-flash)을 확인해주세요.")
