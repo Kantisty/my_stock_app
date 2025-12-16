@@ -87,4 +87,110 @@ def draw_chart(name, info):
             x=col.index, 
             y=col, 
             mode='lines', 
-            name=
+            name=name,
+            line=dict(color=line_color, width=2),
+            fill='tozeroy',
+            hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>'
+        ))
+        
+        fig.update_layout(
+            height=250, 
+            margin=dict(l=5, r=5, t=10, b=10),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False, visible=False),
+            yaxis=dict(showgrid=True, gridcolor='lightgray', side='right')
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False})
+        st.divider()
+        
+    except: pass
+
+# 4. 뉴스 가져오기 함수 (V7.5 방식)
+def get_news_feed(rss_url, max_items=7):
+    try:
+        feed = feedparser.parse(rss_url)
+        news_items = []
+        for entry in feed.entries[:max_items]:
+            link = getattr(entry, 'link', '#') 
+            title = getattr(entry, 'title', '제목 없음')
+            news_items.append(f"- [{title}]({link})")
+        return news_items
+    except Exception as e:
+        return [f"뉴스 피드 로딩 실패: {e}"]
+
+# 5. [핵심] AI 모델 자동 전환 함수
+def generate_ai_report(prompt, api_key):
+    genai.configure(api_key=api_key)
+    
+    # 1순위: Gemini 3 Pro 시도
+    try:
+        model = genai.GenerativeModel('gemini-3-pro-preview')
+        response = model.generate_content(prompt)
+        return f"🚀 **Gemini 3 Pro 분석 결과** (최신 모델 작동)\n\n{response.text}"
+    except Exception as e_3pro:
+        # 실패 시 2순위: Gemini 2.5 Flash 시도
+        try:
+            model_fallback = genai.GenerativeModel('gemini-2.5-flash')
+            response_fallback = model_fallback.generate_content(prompt)
+            return f"⚠️ **Gemini 2.5 Flash 분석 결과** (3 Pro 연결 실패로 자동 전환됨)\n\n{response_fallback.text}"
+        except Exception as e_final:
+            return f"❌ 분석 실패: {e_final}"
+
+# --- [메인 UI] ---
+tab_chart, tab_news, tab_ai = st.tabs(["📈 시장 지표", "📰 실시간 뉴스", "🤖 AI 심층분석"])
+
+with tab_chart:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.subheader("📊 주식")
+        for k, v in indicators_group["📊 주가 지수"].items(): draw_chart(k, v)
+    with c2:
+        st.subheader("💰 금리/환율")
+        for k, v in indicators_group["💰 환율 & 금리"].items(): draw_chart(k, v)
+    with c3:
+        st.subheader("🪙 원자재/코인")
+        for k, v in indicators_group["🪙 원자재/코인"].items(): draw_chart(k, v)
+
+with tab_news:
+    col_k, col_u = st.columns(2)
+    with col_k:
+        st.subheader("🇰🇷 한국 증시 뉴스 (매일경제)")
+        k_news = get_news_feed("https://www.mk.co.kr/rss/30100041/", 7) 
+        for news in k_news: st.markdown(news)
+        news_summary += "한국 뉴스:\n" + "\n".join(k_news) + "\n\n"
+    with col_u:
+        st.subheader("🇺🇸 미국 뉴스 (CNBC)")
+        us_news = get_news_feed("https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664", 7)
+        for news in us_news: st.markdown(news)
+        news_summary += "미국 뉴스:\n" + "\n".join(us_news)
+
+with tab_ai:
+    st.markdown("### 🧠 뉴스 + 데이터 기반 AI 투자 리포트")
+    st.info("엔진: Gemini 3 Pro (우선) -> Gemini 2.5 Flash (예비)")
+    
+    # V7.9처럼 심플하게 버튼 하나로 통합
+    if st.button("📊 AI 심층 분석 시작"):
+        if not api_key:
+            st.error("설정 탭에서 API Key를 입력해주세요.")
+        else:
+            with st.spinner("AI가 시장을 분석 중입니다..."):
+                prompt = f"""
+                당신은 월가 최고의 헤지펀드 매니저입니다.
+                [시장 데이터]
+                {daily_data_summary}
+                [뉴스 헤드라인]
+                {news_summary}
+
+                위 정보를 바탕으로 다음 보고서를 작성해 주세요:
+                1. **시장 핵심 요약 (3줄)**
+                2. **상승/하락 원인 분석**: 뉴스와 지표를 연결해서 설명.
+                3. **위험 신호 점검**: 특히 SOFR, 국채금리, 환율 위주로.
+                4. **실전 투자 전략**: 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언.
+                
+                중요한 부분은 굵은 글씨로 강조해 주세요.
+                """
+                
+                # 안전장치가 적용된 함수 호출
+                result = generate_ai_report(prompt, api_key)
+                st.markdown(result)
