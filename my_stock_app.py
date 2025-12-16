@@ -7,9 +7,9 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V7.7", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.7)")
-st.caption("디자인 개선: 차트 확대 및 가독성 강화")
+st.set_page_config(page_title="AI 투자 비서 V7.9", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.9)")
+st.caption("AI 모델 복구 (Gemini 2.5 Flash) 및 차트 디자인 최적화")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
@@ -50,7 +50,7 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수 (디자인 대폭 수정)
+# 3. 차트 그리기 함수 (보기 편한 V7.7 디자인 유지)
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
@@ -76,34 +76,32 @@ def draw_chart(name, info):
         
         daily_data_summary[name] = f"{last_val:,.2f} ({diff_pct:+.2f}%)"
 
-        # --- [디자인 변경: 수직 배치로 변경하여 크기 확보] ---
-        
-        # 1. 수치 표시 (Metric)
+        # 수치 표시
         st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{diff_pct:.2f}%")
         
-        # 2. 차트 그리기 (Plotly)
+        # 차트 그리기
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=col.index, 
             y=col, 
             mode='lines', 
             name=name,
-            line=dict(color=line_color, width=2), # 선 두께 증가
+            line=dict(color=line_color, width=2),
             fill='tozeroy',
-            hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>' # 마우스 오버 시 날짜/가격 표시
+            hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>'
         ))
         
         fig.update_layout(
-            height=250, # 차트 높이 확대 (100 -> 250)
-            margin=dict(l=10, r=10, t=10, b=10),
+            height=250, # 차트 크기 확대 유지
+            margin=dict(l=5, r=5, t=10, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, visible=False), # X축은 깔끔하게 숨김
-            yaxis=dict(showgrid=True, gridcolor='lightgray', side='right') # Y축 눈금선 표시 & 오른쪽 배치
+            xaxis=dict(showgrid=False, visible=False),
+            yaxis=dict(showgrid=True, gridcolor='lightgray', side='right')
         )
-        st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False}) # staticPlot False로 변경하여 터치/호버 가능하게 함
+        st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False})
         
-        st.divider() # 구분선
+        st.divider()
         
     except: pass
 
@@ -124,7 +122,6 @@ def get_news_feed(rss_url, max_items=7):
 tab_chart, tab_news, tab_ai = st.tabs(["📈 시장 지표", "📰 실시간 뉴스", "🤖 AI 심층분석"])
 
 with tab_chart:
-    # 컬럼을 3개로 나누되, 각 컬럼 내부의 차트 크기를 키움
     c1, c2, c3 = st.columns(3)
     with c1:
         st.subheader("📊 주식")
@@ -151,16 +148,17 @@ with tab_news:
 
 with tab_ai:
     st.markdown("### 🧠 뉴스 + 데이터 기반 AI 투자 리포트")
-    st.info("AI 모델: Gemini 2.5 Flash")
+    st.info("AI 모델: Gemini 2.5 Flash (복구 완료)")
     
     if st.button("📊 AI 심층 분석 시작"):
         if not api_key:
             st.error("설정 탭에서 API Key를 입력해주세요.")
         else:
-            with st.spinner("최신 AI 모델(Gemini 2.5 Flash)이 분석 중입니다..."):
+            with st.spinner("Gemini 2.5 Flash가 시장을 분석 중입니다..."):
                 try:
-                    # API 버전 명시
-                    genai.configure(api_key=api_key, client_options={"api_version": "v1"})
+                    # ✅ 문제가 된 client_options 삭제
+                    genai.configure(api_key=api_key)
+                    # ✅ 아까 잘 작동했던 모델명으로 복구
                     model = genai.GenerativeModel('gemini-2.5-flash')
                     
                     prompt = f"""
@@ -170,16 +168,17 @@ with tab_ai:
                     [뉴스 헤드라인]
                     {news_summary}
 
-                    위 정보를 바탕으로:
-                    1. 시장 3줄 요약
-                    2. 상승/하락 원인 분석 (뉴스와 지표 연관)
-                    3. SOFR/금리 리스크 점검 (유동성 위험 체크)
-                    4. 투자자별(주식/코인) 대응 전략
-                    을 명확하게 작성해주세요.
+                    위 정보를 바탕으로 다음 보고서를 작성해 주세요:
+                    1. **시장 핵심 요약 (3줄)**
+                    2. **상승/하락 원인 분석**: 뉴스와 지표를 연결해서 설명.
+                    3. **위험 신호 점검**: 특히 SOFR, 국채금리, 환율 위주로.
+                    4. **실전 투자 전략**: 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언.
+                    
+                    중요한 부분은 굵은 글씨로 강조해 주세요.
                     """
                     
                     response = model.generate_content(prompt)
                     st.success("분석 완료!")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"오류 발생: {e}\n\n⚠️ 오류 상세: API Key와 모델 이름을 확인해주세요.")
+                    st.error(f"오류 발생: {e}")
