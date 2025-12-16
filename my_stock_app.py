@@ -117,8 +117,8 @@ with tab_news:
     col_korea, col_us = st.columns(2)
     
     with col_korea:
-        st.subheader("🇰🇷 한국 주요 경제 뉴스 (한경)")
-        k_news = get_news_feed("https://rss.hankyung.com/feed/market", 7)
+        st.subheader("🇰🇷 한국 주요 경제 뉴스 (네이버 증권)")
+        k_news = get_news_feed("https://rss.naver.com/rss/nasdaq.xml", 7)
         for news in k_news:
             st.markdown(news)
         news_summary += "한국 뉴스 헤드라인:\n" + "\n".join(k_news) + "\n\n"
@@ -169,4 +169,5 @@ with tab_ai:
                 except Exception as e:
 
                     st.error(f"오류 발생: {e}")
+
 
