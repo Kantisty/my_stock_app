@@ -142,7 +142,7 @@ with tab_ai:
             with st.spinner("AI가 뉴스와 차트를 분석 중입니다..."):
                 try:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-pro')
+                    model = genai.GenerativeModel('gemini-1.5-flash')
                     
                     prompt = f"""
                     당신은 월가 최고의 헤지펀드 매니저입니다.
@@ -167,4 +167,5 @@ with tab_ai:
                     st.success("분석 완료!")
                     st.markdown(response.text)
                 except Exception as e:
+
                     st.error(f"오류 발생: {e}")
