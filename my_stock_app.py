@@ -7,14 +7,13 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V7.5", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.5)")
-st.caption("안정적인 매일경제 증권 뉴스 피드 적용 완료")
+st.set_page_config(page_title="AI 투자 비서 V7.7", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V7.7)")
+st.caption("디자인 개선: 차트 확대 및 가독성 강화")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
     st.header("⚙️ 설정")
-    # API 키 입력 필드는 유지
     api_key = st.text_input("Google API Key (AI용)", type="password", help="aistudio.google.com에서 발급")
     
     period_dict = {"1개월": 30, "3개월": 90, "6개월": 180, "1년": 365}
@@ -28,7 +27,7 @@ with st.sidebar:
 end_date = datetime.now()
 start_date = end_date - timedelta(days=days)
 
-# 2. 데이터 그룹 (V7.3과 동일)
+# 2. 데이터 그룹
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
@@ -51,7 +50,7 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수 (V7.3과 동일)
+# 3. 차트 그리기 함수 (디자인 대폭 수정)
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
@@ -77,17 +76,38 @@ def draw_chart(name, info):
         
         daily_data_summary[name] = f"{last_val:,.2f} ({diff_pct:+.2f}%)"
 
-        c1, c2 = st.columns([1, 2])
-        with c1: st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{diff_pct:.2f}%")
-        with c2:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=col.index, y=col, mode='lines', line=dict(color=line_color, width=1.5), fill='tozeroy'))
-            fig.update_layout(height=100, margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(visible=False))
-            st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
-        st.divider()
+        # --- [디자인 변경: 수직 배치로 변경하여 크기 확보] ---
+        
+        # 1. 수치 표시 (Metric)
+        st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{diff_pct:.2f}%")
+        
+        # 2. 차트 그리기 (Plotly)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=col.index, 
+            y=col, 
+            mode='lines', 
+            name=name,
+            line=dict(color=line_color, width=2), # 선 두께 증가
+            fill='tozeroy',
+            hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>' # 마우스 오버 시 날짜/가격 표시
+        ))
+        
+        fig.update_layout(
+            height=250, # 차트 높이 확대 (100 -> 250)
+            margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False, visible=False), # X축은 깔끔하게 숨김
+            yaxis=dict(showgrid=True, gridcolor='lightgray', side='right') # Y축 눈금선 표시 & 오른쪽 배치
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False}) # staticPlot False로 변경하여 터치/호버 가능하게 함
+        
+        st.divider() # 구분선
+        
     except: pass
 
-# 4. 뉴스 가져오기 함수 (V7.3과 동일)
+# 4. 뉴스 가져오기 함수 (V7.5 유지)
 def get_news_feed(rss_url, max_items=7):
     try:
         feed = feedparser.parse(rss_url)
@@ -104,22 +124,22 @@ def get_news_feed(rss_url, max_items=7):
 tab_chart, tab_news, tab_ai = st.tabs(["📈 시장 지표", "📰 실시간 뉴스", "🤖 AI 심층분석"])
 
 with tab_chart:
+    # 컬럼을 3개로 나누되, 각 컬럼 내부의 차트 크기를 키움
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.subheader("주식")
+        st.subheader("📊 주식")
         for k, v in indicators_group["📊 주가 지수"].items(): draw_chart(k, v)
     with c2:
-        st.subheader("금리/환율")
+        st.subheader("💰 금리/환율")
         for k, v in indicators_group["💰 환율 & 금리"].items(): draw_chart(k, v)
     with c3:
-        st.subheader("원자재/코인")
+        st.subheader("🪙 원자재/코인")
         for k, v in indicators_group["🪙 원자재/코인"].items(): draw_chart(k, v)
 
 with tab_news:
     col_korea, col_us = st.columns(2)
     with col_korea:
         st.subheader("🇰🇷 한국 증시 뉴스 (매일경제)")
-        # ✅ 매일경제 RSS로 교체
         k_news = get_news_feed("https://www.mk.co.kr/rss/30100041/", 7) 
         for news in k_news: st.markdown(news)
         news_summary += "한국 뉴스:\n" + "\n".join(k_news) + "\n\n"
@@ -131,7 +151,7 @@ with tab_news:
 
 with tab_ai:
     st.markdown("### 🧠 뉴스 + 데이터 기반 AI 투자 리포트")
-    st.info("AI 모델이 'Gemini 2.5 Flash'로 설정되었습니다.")
+    st.info("AI 모델: Gemini 2.5 Flash")
     
     if st.button("📊 AI 심층 분석 시작"):
         if not api_key:
@@ -139,7 +159,7 @@ with tab_ai:
         else:
             with st.spinner("최신 AI 모델(Gemini 2.5 Flash)이 분석 중입니다..."):
                 try:
-                    # ✅ API 버전 명시 추가
+                    # API 버전 명시
                     genai.configure(api_key=api_key, client_options={"api_version": "v1"})
                     model = genai.GenerativeModel('gemini-2.5-flash')
                     
@@ -162,4 +182,4 @@ with tab_ai:
                     st.success("분석 완료!")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"오류 발생: {e}\n\n⚠️ 오류 상세: API Key와 모델 이름(gemini-2.5-flash)을 확인해주세요.")
+                    st.error(f"오류 발생: {e}\n\n⚠️ 오류 상세: API Key와 모델 이름을 확인해주세요.")
