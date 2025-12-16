@@ -7,9 +7,9 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V9.3", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.3)")
-st.caption("한국 국채 데이터 연결 수정 및 전체 지표 안정화")
+st.set_page_config(page_title="AI 투자 비서 V9.5", layout="wide")
+st.title("🌏 AI 투자 비서 & 뉴스룸 (V9.5)")
+st.caption("AI 분석력 강화: 달러인덱스, 구리, 하이일드 채권(HYG) 추가")
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
@@ -34,7 +34,7 @@ with st.sidebar:
 end_date = datetime.now()
 start_date = end_date - timedelta(days=days)
 
-# 2. 데이터 그룹
+# 2. 데이터 그룹 (핵심 지표 3종 추가)
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
@@ -43,16 +43,18 @@ indicators_group = {
         "🇺🇸 나스닥 100": {"type": "fdr", "symbol": "IXIC", "color": "#8E44AD"},
         "💾 반도체(SOX)": {"type": "yf", "symbol": "^SOX", "color": "#2980B9"}
     },
-    "💰 환율 & 금리": {
+    "💰 환율 & 금리 & 리스크": {
         "💸 원/달러": {"type": "fdr", "symbol": "USD/KRW", "color": "#D35400"},
+        "💵 달러 인덱스": {"type": "yf", "symbol": "DX-Y.NYB", "color": "#2E86C1"}, # 추가됨 (환율 원인 분석)
+        "⚠️ 하이일드(HYG)": {"type": "yf", "symbol": "HYG", "color": "#800080"}, # 추가됨 (기업 부도 리스크)
         "🏦 미국 SOFR": {"type": "fdr", "symbol": "FRED:SOFR", "color": "#16A085"},
-        # ✅ 수정됨: 한국 국채 소스를 fdr로 변경 (안정성 확보)
         "🇰🇷 한국 국채 10년": {"type": "fdr", "symbol": "KR10YT=RR", "color": "#C0392B"},
         "🇺🇸 미 국채 10년": {"type": "yf", "symbol": "^TNX", "color": "#2980B9"},
         "🇺🇸 미 국채 30년": {"type": "yf", "symbol": "^TYX", "color": "#1ABC9C"}
     },
     "🪙 원자재/코인": {
         "🥇 금 선물 (Gold)": {"type": "yf", "symbol": "GC=F", "color": "#F1C40F"},
+        "🏭 구리 (경기선행)": {"type": "yf", "symbol": "HG=F", "color": "#A0522D"}, # 추가됨 (실물 경기 예측)
         "₿ 비트코인": {"type": "yf", "symbol": "BTC-USD", "color": "#F39C12"},
         "🛢️ WTI 원유": {"type": "yf", "symbol": "CL=F", "color": "#2C3E50"},
         "😱 공포지수(VIX)": {"type": "yf", "symbol": "^VIX", "color": "#7F8C8D"}
@@ -67,31 +69,22 @@ def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
     try:
-        # 데이터 수집 분기 처리
         if info["type"] == "fdr":
             df = fdr.DataReader(symbol, start_date, end_date)
         else:
             df = yf.download(symbol, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'), progress=False)
         
-        # 데이터가 비어있을 경우 처리
-        if df is None or len(df) == 0:
-            st.warning(f"{name}: 데이터 수신 지연")
-            return
+        if df is None or len(df) == 0: return
 
-        # 컬럼 정리 (Close, Adj Close, DATE 등)
         if 'Close' in df.columns: col = df['Close']
         elif 'Adj Close' in df.columns: col = df['Adj Close']
         elif 'DATE' in df.columns: col = df['DATE']
         else: col = df.iloc[:, 0]
         
-        # Series 변환
         if hasattr(col, 'columns'): col = col.iloc[:, 0]
         col = col.dropna()
         
-        # 데이터가 너무 적을 경우 예외 처리
-        if len(col) < 2:
-            st.warning(f"{name}: 데이터 부족")
-            return
+        if len(col) < 2: return
             
         last_val = float(col.iloc[-1])
         prev_val = float(col.iloc[-2])
@@ -102,10 +95,8 @@ def draw_chart(name, info):
         
         daily_data_summary[name] = f"{last_val:,.2f} ({diff_pct:+.2f}%)" if 'diff_pct' in locals() else f"{last_val:,.2f}"
 
-        # 수치 표시
         st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{daily_diff_pct:.2f}% (기간: {period_diff_pct:+.2f}%)")
         
-        # 차트 그리기
         fig = go.Figure()
         fig.add_trace(go.Scatter(
             x=col.index, y=col, mode='lines', name=name,
@@ -125,9 +116,7 @@ def draw_chart(name, info):
         st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False})
         st.divider()
         
-    except Exception as e:
-        # 에러 발생 시 앱 멈춤 방지 (로그만 출력)
-        pass
+    except: pass
 
 # 4. 뉴스 가져오기 함수
 def get_news_feed(rss_url, max_items=7):
@@ -142,23 +131,20 @@ def get_news_feed(rss_url, max_items=7):
     except Exception as e:
         return [f"뉴스 피드 로딩 실패: {e}"]
 
-# 5. AI 응답 생성 함수 (자동 전환)
+# 5. AI 응답 생성 함수
 def generate_ai_report(prompt, api_key):
     genai.configure(api_key=api_key)
-    
-    # 1순위: Gemini 3 Pro
     try:
         model = genai.GenerativeModel('gemini-3-pro-preview')
         response = model.generate_content(prompt)
         return f"🚀 **Gemini 3 Pro 분석 결과**\n\n{response.text}"
-    except Exception as e_3pro:
-        # 2순위: Gemini 2.5 Flash
+    except:
         try:
             model_fallback = genai.GenerativeModel('gemini-2.5-flash')
             response_fallback = model_fallback.generate_content(prompt)
-            return f"⚠️ **Gemini 2.5 Flash 분석 결과** (자동 전환됨)\n\n{response_fallback.text}"
-        except Exception as e_final:
-            return f"❌ 분석 실패: {e_final}"
+            return f"⚠️ **Gemini 2.5 Flash 분석 결과** (자동 전환)\n\n{response_fallback.text}"
+        except Exception as e:
+            return f"❌ 분석 실패: {e}"
 
 # --- [메인 UI] ---
 tab_chart, tab_news, tab_ai = st.tabs(["📈 시장 지표", "📰 실시간 뉴스", "🤖 AI 심층분석"])
@@ -169,8 +155,8 @@ with tab_chart:
         st.subheader("📊 주식")
         for k, v in indicators_group["📊 주가 지수"].items(): draw_chart(k, v)
     with c2:
-        st.subheader("💰 금리/환율")
-        for k, v in indicators_group["💰 환율 & 금리"].items(): draw_chart(k, v)
+        st.subheader("💰 금리/환율/리스크")
+        for k, v in indicators_group["💰 환율 & 금리 & 리스크"].items(): draw_chart(k, v)
     with c3:
         st.subheader("🪙 원자재/코인")
         for k, v in indicators_group["🪙 원자재/코인"].items(): draw_chart(k, v)
@@ -206,11 +192,14 @@ with tab_ai:
 
                 위 정보를 바탕으로 다음 보고서를 작성해 주세요:
                 1. **시장 핵심 요약 (3줄)**
-                2. **상승/하락 원인 분석**: 뉴스와 지표를 연결해서 설명.
+                2. **상승/하락 원인 분석**:
+                   - 환율 상승 시: 달러 인덱스 때문인지 한국 내부 문제인지 구분.
+                   - 경기 침체 여부: 구리(Copper)와 하이일드(HYG) 지표 참고.
                 3. **위험 신호 점검**: 특히 SOFR, 국채금리, 환율 위주로.
                 4. **실전 투자 전략**: 주식 비중을 늘릴지, 현금을 확보할지 구체적으로 조언.
                 
                 중요한 부분은 굵은 글씨로 강조해 주세요.
                 """
+                
                 result = generate_ai_report(prompt, api_key)
                 st.markdown(result)
