@@ -7,16 +7,31 @@ import feedparser
 from datetime import datetime, timedelta
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V10.0", layout="wide")
-st.title("🌏 AI 투자 비서 & 뉴스룸 (V10.0)")
-st.caption("이평선(60/200일) 탑재, 뉴스 확대(20개), 부동산/엔화 지표 추가")
+st.set_page_config(page_title="AI 투자 비서 V10.1", layout="wide")
+
+# --- [기능 1] 조회 시점 실시간 표시 ---
+current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+st.title(f"🌏 AI 투자 비서 & 뉴스룸 (조회: {current_time_str})")
+
+# --- [기능 2] 업데이트 내역 (클릭 시 펼쳐짐) ---
+with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.1) - 클릭해서 보기"):
+    st.markdown("""
+    * **V10.1:** 조회 시점 타임스탬프 표시, 업데이트 히스토리 열람 기능 추가
+    * **V10.0:** 차트 이평선(60/200일) 추가, 뉴스 20개 확대, 엔화/부동산 지표 추가
+    * **V9.6:** AI 리포트 양식 고도화 (국가별 요약 분리, 심층 분석 기준 적용)
+    * **V9.5:** 경기 선행 지표 추가 (달러인덱스, 구리, 하이일드 채권)
+    * **V9.4:** 한국 국채 데이터 오류 해결 (ETF 대체 등 안정화 시도)
+    * **V9.1:** AI 모델 안전장치 (3 Pro 우선 시도 -> 2.5 Flash 자동 전환)
+    * **V8.0:** 국가별/기간별 AI 정밀 분석 기능
+    * **V7.x:** 실시간 뉴스(매경/CNBC) RSS 피드 연동, 차트 가독성 개선
+    * **V1~V6:** 초기 프로토타입 (기본 지표, 단순 AI 연결)
+    """)
 
 # --- [사이드바: 설정] ---
 with st.sidebar:
     st.header("⚙️ 설정")
     api_key = st.text_input("Google API Key (AI용)", type="password", help="aistudio.google.com에서 발급")
     
-    # 이평선 계산을 위해 데이터는 길게 가져오되, 보여주는 건 선택한 기간만큼 자름
     period_options = {
         "최근 1개월": 30,
         "최근 3개월": 90,
@@ -32,12 +47,12 @@ with st.sidebar:
     if st.button('🔄 데이터 & 뉴스 새로고침'):
         st.rerun()
 
-# 데이터 수집 기간 (이평선 계산을 위해 무조건 300일 이상 확보)
+# 데이터 수집 기간 (이평선 계산용)
 calc_start_date = datetime.now() - timedelta(days=400) 
 display_start_date = datetime.now() - timedelta(days=display_days)
 end_date = datetime.now()
 
-# 2. 데이터 그룹 (엔화, 부동산 추가)
+# 2. 데이터 그룹
 indicators_group = {
     "📊 주가 지수": {
         "🇰🇷 코스피": {"type": "fdr", "symbol": "KS11", "color": "#E74C3C"},
@@ -48,8 +63,8 @@ indicators_group = {
     },
     "💰 환율 & 금리 & 부동산": {
         "💸 원/달러": {"type": "fdr", "symbol": "USD/KRW", "color": "#D35400"},
-        "💴 원/엔 (JPY)": {"type": "fdr", "symbol": "JPY/KRW", "color": "#5D6D7E"}, # 추가됨
-        "🏗️ 리츠부동산(PF심리)": {"type": "fdr", "symbol": "329200", "color": "#8B4513"}, # 추가됨 (TIGER 리츠부동산인프라)
+        "💴 원/엔 (JPY)": {"type": "fdr", "symbol": "JPY/KRW", "color": "#5D6D7E"},
+        "🏗️ 리츠부동산(PF심리)": {"type": "fdr", "symbol": "329200", "color": "#8B4513"},
         "🏦 미국 SOFR": {"type": "fdr", "symbol": "FRED:SOFR", "color": "#16A085"},
         "🇰🇷 한국 국채 10년": {"type": "fdr", "symbol": "KR10YT=RR", "color": "#C0392B"},
         "🇺🇸 미 국채 10년": {"type": "yf", "symbol": "^TNX", "color": "#2980B9"},
@@ -68,12 +83,11 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수 (이평선 로직 추가)
+# 3. 차트 그리기 함수
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
     try:
-        # 1. 데이터 수집 (충분한 기간)
         if info["type"] == "fdr":
             df = fdr.DataReader(symbol, calc_start_date, end_date)
         else:
@@ -81,7 +95,6 @@ def draw_chart(name, info):
         
         if df is None or len(df) == 0: return
 
-        # 컬럼 정리
         if 'Close' in df.columns: col = df['Close']
         elif 'Adj Close' in df.columns: col = df['Adj Close']
         elif 'DATE' in df.columns: col = df['DATE']
@@ -90,12 +103,11 @@ def draw_chart(name, info):
         if hasattr(col, 'columns'): col = col.iloc[:, 0]
         col = col.dropna()
 
-        # 2. 이동평균선 계산 (전체 데이터 기준)
+        # 이평선 계산
         ma60 = col.rolling(window=60).mean()
         ma200 = col.rolling(window=200).mean()
 
-        # 3. 화면 표시용 데이터 자르기 (Display Slicing)
-        # 사용자가 선택한 기간 이후의 데이터만 필터링
+        # 화면 표시용 데이터 자르기
         mask = col.index >= display_start_date
         col_display = col.loc[mask]
         ma60_display = ma60.loc[mask]
@@ -103,19 +115,15 @@ def draw_chart(name, info):
         
         if len(col_display) < 1: return
 
-        # 수치 계산
         last_val = float(col_display.iloc[-1])
         prev_val = float(col_display.iloc[-2])
-        # 기간 수익률은 '보여지는 기간'의 시작점 기준
         start_val = float(col_display.iloc[0]) 
         
         daily_diff_pct = (last_val - prev_val) / prev_val * 100 if prev_val != 0 else 0
         period_diff_pct = (last_val - start_val) / start_val * 100 if start_val != 0 else 0
         
-        # AI용 데이터 요약
         daily_data_summary[name] = f"{last_val:,.2f} ({daily_diff_pct:+.2f}%)"
 
-        # 4. 차트 그리기
         st.metric(label=name, value=f"{last_val:,.2f}", delta=f"{daily_diff_pct:.2f}% (기간: {period_diff_pct:+.2f}%)")
         
         fig = go.Figure()
@@ -128,14 +136,14 @@ def draw_chart(name, info):
             hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>'
         ))
         
-        # 60일 이평선 (초록 점선)
+        # 60일선
         fig.add_trace(go.Scatter(
             x=ma60_display.index, y=ma60_display, mode='lines', name='60일선',
             line=dict(color='green', width=1, dash='dot'),
             hoverinfo='skip'
         ))
 
-        # 200일 이평선 (회색 실선)
+        # 200일선
         fig.add_trace(go.Scatter(
             x=ma200_display.index, y=ma200_display, mode='lines', name='200일선',
             line=dict(color='gray', width=1.5),
@@ -143,20 +151,20 @@ def draw_chart(name, info):
         ))
         
         fig.update_layout(
-            height=280, # 높이 약간 증가
+            height=280,
             margin=dict(l=5, r=5, t=10, b=10),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(showgrid=False, visible=False),
             yaxis=dict(showgrid=True, gridcolor='lightgray', side='right'),
-            showlegend=False # 범례 숨김 (깔끔하게)
+            showlegend=False
         )
         st.plotly_chart(fig, use_container_width=True, config={'staticPlot': False})
         st.divider()
         
     except: pass
 
-# 4. 뉴스 가져오기 함수 (개수 확대: 20개)
+# 4. 뉴스 가져오기 함수
 def get_news_feed(rss_url, max_items=20):
     try:
         feed = feedparser.parse(rss_url)
@@ -194,7 +202,6 @@ with tab_chart:
         for k, v in indicators_group["📊 주가 지수"].items(): draw_chart(k, v)
     with c2:
         st.subheader("💰 환율/금리/부동산")
-        st.caption("※ 리츠부동산: 한국 부동산 심리 대변 / 국채10년: 금리 동향")
         for k, v in indicators_group["💰 환율 & 금리 & 부동산"].items(): draw_chart(k, v)
     with c3:
         st.subheader("🪙 원자재/코인/리스크")
@@ -204,12 +211,11 @@ with tab_news:
     col_k, col_u = st.columns(2)
     with col_k:
         st.subheader("🇰🇷 한국 뉴스 (최신 20개)")
-        # 뉴스 박스에 스크롤 적용 (max-height)
         news_container = st.container(height=600)
         k_news = get_news_feed("https://www.mk.co.kr/rss/30100041/", 20) 
         with news_container:
             for news in k_news: st.markdown(news)
-        news_summary += "한국 뉴스:\n" + "\n".join(k_news[:10]) + "\n\n" # AI에겐 10개만 전달 (토큰 절약)
+        news_summary += "한국 뉴스:\n" + "\n".join(k_news[:10]) + "\n\n"
         
     with col_u:
         st.subheader("🇺🇸 미국 뉴스 (최신 20개)")
@@ -242,8 +248,8 @@ with tab_ai:
                    - 미국 시장:
 
                 2. **상승/하락 원인 분석**:
-                   - 환율(원달러/엔화) 변동의 의미 분석.
-                   - 한국 부동산 심리(리츠 지표)와 증시 연관성 진단.
+                   - 환율(원달러/엔화) 변동의 의미.
+                   - 한국 부동산 심리(리츠 지표)와 증시 연관성.
                    - 경기 침체 여부(구리, 하이일드 참고).
 
                 3. **위험 신호 점검**:
