@@ -3,4 +3,5 @@ finance-datareader
 yfinance
 plotly
 google-generativeai
+pytz
 feedparser
