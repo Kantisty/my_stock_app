@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import pytz
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V10.3", layout="wide")
+st.set_page_config(page_title="AI 투자 비서 V10.4", layout="wide")
 
 # --- 한국/미국 시간 계산 ---
 utc_now = datetime.now(pytz.utc)
@@ -23,12 +23,12 @@ us_str = us_now.strftime("%m/%d %H:%M:%S")
 st.title(f"🌏 AI 투자 비서 (🇰🇷 {kst_str} | 🇺🇸 {us_str})")
 
 # --- 업데이트 내역 ---
-with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.3)"):
+with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.4)"):
     st.markdown("""
-    * **V10.3:** 차트 X축(날짜) 표시 기능 추가
-    * **V10.2:** 서버 시간대 문제 해결 (한국/미국 시간 동시 표시)
-    * **V10.1:** 조회 시점 표시, 히스토리 열람 기능
-    * **V10.0:** 차트 이평선(60/200일), 뉴스 20개, 엔화/부동산 지표
+    * **V10.4:** 차트 조회 기간 확대 (3년, 5년) 및 데이터 수집 로직 최적화
+    * **V10.3:** 차트 X축(날짜) 표시
+    * **V10.2:** 한국/미국 시간 표시
+    * **V10.0:** 이평선, 뉴스 20개, 부동산/엔화 지표
     """)
 
 # --- [사이드바: 설정] ---
@@ -36,23 +36,25 @@ with st.sidebar:
     st.header("⚙️ 설정")
     api_key = st.text_input("Google API Key (AI용)", type="password", help="aistudio.google.com에서 발급")
     
+    # ✅ 요청하신 기간 옵션 적용
     period_options = {
         "최근 1개월": 30,
         "최근 3개월": 90,
         "최근 6개월": 180,
         "최근 1년": 365,
-        "최근 2년": 730
+        "최근 3년": 1095,
+        "최근 5년": 1825
     }
     selected_period_label = st.selectbox("차트 확대/축소 (Display)", list(period_options.keys()), index=1)
     display_days = period_options[selected_period_label]
     
     st.markdown("---")
-    st.info("Tip: 차트에 60일(초록), 200일(회색) 이동평균선이 함께 표시됩니다.")
+    st.info("Tip: 3년/5년 장기 차트에서도 200일 이평선을 확인할 수 있습니다.")
     if st.button('🔄 데이터 & 뉴스 새로고침'):
         st.rerun()
 
-# 데이터 수집 기간
-calc_start_date = datetime.now() - timedelta(days=400) 
+# ✅ 데이터 수집 기간 최적화 (선택한 기간 + 이평선 계산용 300일 여유분)
+calc_start_date = datetime.now() - timedelta(days=display_days + 300) 
 display_start_date = datetime.now() - timedelta(days=display_days)
 end_date = datetime.now()
 
@@ -87,11 +89,12 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수 (X축 날짜 추가)
+# 3. 차트 그리기 함수
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
     try:
+        # 데이터 수집 (기간 넉넉하게)
         if info["type"] == "fdr":
             df = fdr.DataReader(symbol, calc_start_date, end_date)
         else:
@@ -107,11 +110,11 @@ def draw_chart(name, info):
         if hasattr(col, 'columns'): col = col.iloc[:, 0]
         col = col.dropna()
 
-        # 이평선
+        # 이평선 계산 (전체 기간 기준)
         ma60 = col.rolling(window=60).mean()
         ma200 = col.rolling(window=200).mean()
 
-        # 데이터 자르기
+        # 화면 표시용 자르기
         mask = col.index >= display_start_date
         col_display = col.loc[mask]
         ma60_display = ma60.loc[mask]
@@ -132,6 +135,7 @@ def draw_chart(name, info):
         
         fig = go.Figure()
         
+        # 메인 차트
         fig.add_trace(go.Scatter(
             x=col_display.index, y=col_display, mode='lines', name='현재가',
             line=dict(color=line_color, width=2),
@@ -139,27 +143,28 @@ def draw_chart(name, info):
             hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>'
         ))
         
+        # 60일선
         fig.add_trace(go.Scatter(
             x=ma60_display.index, y=ma60_display, mode='lines', name='60일선',
             line=dict(color='green', width=1, dash='dot'), hoverinfo='skip'
         ))
 
+        # 200일선
         fig.add_trace(go.Scatter(
             x=ma200_display.index, y=ma200_display, mode='lines', name='200일선',
             line=dict(color='gray', width=1.5), hoverinfo='skip'
         ))
         
-        # --- [디자인 수정: X축 날짜 활성화] ---
         fig.update_layout(
             height=280,
-            margin=dict(l=5, r=5, t=10, b=20), # 하단 여백 확보
+            margin=dict(l=5, r=5, t=10, b=20),
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(
                 showgrid=False, 
-                visible=True,           # 날짜 표시 켜기
-                tickformat='%y.%m.%d',  # 포맷: 24.05.31
-                tickfont=dict(size=10)  # 글자 크기 조절
+                visible=True,
+                tickformat='%y.%m.%d', 
+                tickfont=dict(size=10)
             ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', side='right'),
             showlegend=False
