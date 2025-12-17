@@ -5,26 +5,35 @@ import plotly.graph_objects as go
 import google.generativeai as genai
 import feedparser
 from datetime import datetime, timedelta
+import pytz  # 시간대 처리를 위한 라이브러리
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V10.1", layout="wide")
+st.set_page_config(page_title="AI 투자 비서 V10.2", layout="wide")
 
-# --- [기능 1] 조회 시점 실시간 표시 ---
-current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-st.title(f"🌏 AI 투자 비서 & 뉴스룸 (조회: {current_time_str})")
+# --- [기능 1] 한국/미국 시간 정확히 계산 ---
+# 서버의 UTC 시간 가져오기
+utc_now = datetime.now(pytz.utc)
 
-# --- [기능 2] 업데이트 내역 (클릭 시 펼쳐짐) ---
-with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.1) - 클릭해서 보기"):
+# 한국 시간 (KST) 변환
+kst_timezone = pytz.timezone('Asia/Seoul')
+kst_now = utc_now.astimezone(kst_timezone)
+kst_str = kst_now.strftime("%m/%d %H:%M:%S")
+
+# 미국 동부 시간 (ET) 변환 (뉴욕 증시 기준)
+us_timezone = pytz.timezone('US/Eastern')
+us_now = utc_now.astimezone(us_timezone)
+us_str = us_now.strftime("%m/%d %H:%M:%S")
+
+# 메인 타이틀에 시간 표시
+st.title(f"🌏 AI 투자 비서 (🇰🇷 {kst_str} | 🇺🇸 {us_str})")
+
+# --- [기능 2] 업데이트 내역 ---
+with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.2)"):
     st.markdown("""
-    * **V10.1:** 조회 시점 타임스탬프 표시, 업데이트 히스토리 열람 기능 추가
-    * **V10.0:** 차트 이평선(60/200일) 추가, 뉴스 20개 확대, 엔화/부동산 지표 추가
-    * **V9.6:** AI 리포트 양식 고도화 (국가별 요약 분리, 심층 분석 기준 적용)
-    * **V9.5:** 경기 선행 지표 추가 (달러인덱스, 구리, 하이일드 채권)
-    * **V9.4:** 한국 국채 데이터 오류 해결 (ETF 대체 등 안정화 시도)
-    * **V9.1:** AI 모델 안전장치 (3 Pro 우선 시도 -> 2.5 Flash 자동 전환)
-    * **V8.0:** 국가별/기간별 AI 정밀 분석 기능
-    * **V7.x:** 실시간 뉴스(매경/CNBC) RSS 피드 연동, 차트 가독성 개선
-    * **V1~V6:** 초기 프로토타입 (기본 지표, 단순 AI 연결)
+    * **V10.2:** 서버 시간대 문제 해결 (한국/미국 시간 동시 표시)
+    * **V10.1:** 조회 시점 표시, 히스토리 열람 기능
+    * **V10.0:** 차트 이평선(60/200일), 뉴스 20개, 엔화/부동산 지표
+    * **V9.x:** AI 리포트 고도화 및 데이터 안정화
     """)
 
 # --- [사이드바: 설정] ---
@@ -164,7 +173,7 @@ def draw_chart(name, info):
         
     except: pass
 
-# 4. 뉴스 가져오기 함수
+# 4. 뉴스 가져오기 함수 (20개)
 def get_news_feed(rss_url, max_items=20):
     try:
         feed = feedparser.parse(rss_url)
