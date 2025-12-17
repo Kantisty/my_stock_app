@@ -5,35 +5,30 @@ import plotly.graph_objects as go
 import google.generativeai as genai
 import feedparser
 from datetime import datetime, timedelta
-import pytz  # 시간대 처리를 위한 라이브러리
+import pytz
 
 # 1. 화면 기본 설정
-st.set_page_config(page_title="AI 투자 비서 V10.2", layout="wide")
+st.set_page_config(page_title="AI 투자 비서 V10.3", layout="wide")
 
-# --- [기능 1] 한국/미국 시간 정확히 계산 ---
-# 서버의 UTC 시간 가져오기
+# --- 한국/미국 시간 계산 ---
 utc_now = datetime.now(pytz.utc)
-
-# 한국 시간 (KST) 변환
 kst_timezone = pytz.timezone('Asia/Seoul')
 kst_now = utc_now.astimezone(kst_timezone)
 kst_str = kst_now.strftime("%m/%d %H:%M:%S")
 
-# 미국 동부 시간 (ET) 변환 (뉴욕 증시 기준)
 us_timezone = pytz.timezone('US/Eastern')
 us_now = utc_now.astimezone(us_timezone)
 us_str = us_now.strftime("%m/%d %H:%M:%S")
 
-# 메인 타이틀에 시간 표시
 st.title(f"🌏 AI 투자 비서 (🇰🇷 {kst_str} | 🇺🇸 {us_str})")
 
-# --- [기능 2] 업데이트 내역 ---
-with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.2)"):
+# --- 업데이트 내역 ---
+with st.expander("📝 버전 업데이트 히스토리 (V1.0 ~ V10.3)"):
     st.markdown("""
+    * **V10.3:** 차트 X축(날짜) 표시 기능 추가
     * **V10.2:** 서버 시간대 문제 해결 (한국/미국 시간 동시 표시)
     * **V10.1:** 조회 시점 표시, 히스토리 열람 기능
     * **V10.0:** 차트 이평선(60/200일), 뉴스 20개, 엔화/부동산 지표
-    * **V9.x:** AI 리포트 고도화 및 데이터 안정화
     """)
 
 # --- [사이드바: 설정] ---
@@ -56,7 +51,7 @@ with st.sidebar:
     if st.button('🔄 데이터 & 뉴스 새로고침'):
         st.rerun()
 
-# 데이터 수집 기간 (이평선 계산용)
+# 데이터 수집 기간
 calc_start_date = datetime.now() - timedelta(days=400) 
 display_start_date = datetime.now() - timedelta(days=display_days)
 end_date = datetime.now()
@@ -92,7 +87,7 @@ indicators_group = {
 daily_data_summary = {}
 news_summary = ""
 
-# 3. 차트 그리기 함수
+# 3. 차트 그리기 함수 (X축 날짜 추가)
 def draw_chart(name, info):
     symbol = info["symbol"]
     line_color = info["color"]
@@ -112,11 +107,11 @@ def draw_chart(name, info):
         if hasattr(col, 'columns'): col = col.iloc[:, 0]
         col = col.dropna()
 
-        # 이평선 계산
+        # 이평선
         ma60 = col.rolling(window=60).mean()
         ma200 = col.rolling(window=200).mean()
 
-        # 화면 표시용 데이터 자르기
+        # 데이터 자르기
         mask = col.index >= display_start_date
         col_display = col.loc[mask]
         ma60_display = ma60.loc[mask]
@@ -137,7 +132,6 @@ def draw_chart(name, info):
         
         fig = go.Figure()
         
-        # 메인 가격 선
         fig.add_trace(go.Scatter(
             x=col_display.index, y=col_display, mode='lines', name='현재가',
             line=dict(color=line_color, width=2),
@@ -145,26 +139,28 @@ def draw_chart(name, info):
             hovertemplate='%{x|%Y-%m-%d}: %{y:,.2f}<extra></extra>'
         ))
         
-        # 60일선
         fig.add_trace(go.Scatter(
             x=ma60_display.index, y=ma60_display, mode='lines', name='60일선',
-            line=dict(color='green', width=1, dash='dot'),
-            hoverinfo='skip'
+            line=dict(color='green', width=1, dash='dot'), hoverinfo='skip'
         ))
 
-        # 200일선
         fig.add_trace(go.Scatter(
             x=ma200_display.index, y=ma200_display, mode='lines', name='200일선',
-            line=dict(color='gray', width=1.5),
-            hoverinfo='skip'
+            line=dict(color='gray', width=1.5), hoverinfo='skip'
         ))
         
+        # --- [디자인 수정: X축 날짜 활성화] ---
         fig.update_layout(
             height=280,
-            margin=dict(l=5, r=5, t=10, b=10),
+            margin=dict(l=5, r=5, t=10, b=20), # 하단 여백 확보
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, visible=False),
+            xaxis=dict(
+                showgrid=False, 
+                visible=True,           # 날짜 표시 켜기
+                tickformat='%y.%m.%d',  # 포맷: 24.05.31
+                tickfont=dict(size=10)  # 글자 크기 조절
+            ),
             yaxis=dict(showgrid=True, gridcolor='lightgray', side='right'),
             showlegend=False
         )
@@ -173,7 +169,7 @@ def draw_chart(name, info):
         
     except: pass
 
-# 4. 뉴스 가져오기 함수 (20개)
+# 4. 뉴스 가져오기
 def get_news_feed(rss_url, max_items=20):
     try:
         feed = feedparser.parse(rss_url)
@@ -186,7 +182,7 @@ def get_news_feed(rss_url, max_items=20):
     except Exception as e:
         return [f"뉴스 피드 로딩 실패: {e}"]
 
-# 5. AI 응답 생성 함수
+# 5. AI 응답
 def generate_ai_report(prompt, api_key):
     genai.configure(api_key=api_key)
     try:
@@ -211,6 +207,7 @@ with tab_chart:
         for k, v in indicators_group["📊 주가 지수"].items(): draw_chart(k, v)
     with c2:
         st.subheader("💰 환율/금리/부동산")
+        st.caption("※ 리츠부동산: 부동산 심리 / 국채: 금리 동향")
         for k, v in indicators_group["💰 환율 & 금리 & 부동산"].items(): draw_chart(k, v)
     with c3:
         st.subheader("🪙 원자재/코인/리스크")
